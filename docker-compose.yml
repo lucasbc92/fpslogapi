@@ -1,0 +1,36 @@
+services:
+  # MongoDB service
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"  # Map container port 27017 to host port 27017 (default for MongoDB)
+    environment:
+      MONGO_INITDB_DATABASE: fpslogdb
+    networks:
+      - local
+    volumes:
+      - mongodb-data:/data/db  # Optional volume to persist MongoDB data
+
+  # Spring Boot application service
+  api:
+    build: .  # Build the Spring application image from the current directory (Dockerfile)
+    ports:
+      - "8080:8080"  # Map container port 8080 to host port 8080
+    environment:
+      SPRING_APPLICATION_NAME: fpslogapi  # Set application name from application.properties
+      SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/fpslogdb
+      SPRING_DATA_MONGODB_DATABASE: fpslogdb  # Set database name from application.properties
+      SPRINGDOC_API_DOCS_PATH: /api-docs  # Set API docs path from application.properties
+      SPRINGDOC_SWAGGER_UI_PATH: /swagger-ui.html  # Set Swagger UI path from application.properties
+    networks:
+     - local
+    depends_on:
+      - mongodb  # Ensure the Spring app starts after MongoDB is up
+
+networks:
+  local:
+    driver: "bridge"
+    name: ${NETWORK_NAME:-local}
+
+volumes:
+  mongodb-data:  # Optional volume to persist MongoDB data (if used in MongoDB service)
