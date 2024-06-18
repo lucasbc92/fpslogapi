@@ -21,31 +21,9 @@ public class ParserService {
     private GameRepository gameRepository;
 
     public enum LogPatternsEnum {
-        INITGAME_PATTERN("^\\d{1,2}:\\d{2} InitGame: \\w+$") {
-            @Override
-            public void handle(String line, Game currentGame, Matcher matcher, ParserService service) {
-                currentGame = new Game();
-            }
-        },
-        KILL_PATTERN("\\d{1,2}:\\d{2} Kill: \\d+ \\d+ \\d+: ([^ ]+) killed ([^ ]+) by [^ ]+") {
-            @Override
-            public void handle(String line, Game currentGame, Matcher matcher, ParserService service) {
-                if (currentGame != null) {
-                    String killer = matcher.group(1);
-                    String victim = matcher.group(2);
-                    currentGame.addKill(new Kill(killer, victim));
-                }
-            }
-        },
-        SHUTDOWNGAME_PATTERN("^\\d{1,2}:\\d{2} ShutdownGame:$") {
-            @Override
-            public void handle(String line, Game currentGame, Matcher matcher, ParserService service) {
-                if (currentGame != null) {
-                    service.gameRepository.save(currentGame);
-                    currentGame = null;
-                }
-            }
-        };
+        INITGAME_PATTERN("\\d{1,2}:\\d{2} InitGame: .+"),
+        KILL_PATTERN("\\d{1,2}:\\d{2} Kill: \\d+ \\d+ \\d+: (.+?) killed (.+?) by MOD_(?:[A-Z]+_)*[A-Z]+$"),
+        SHUTDOWNGAME_PATTERN("\\d{1,2}:\\d{2} ShutdownGame:");
 
         private final Pattern pattern;
 
@@ -56,8 +34,6 @@ public class ParserService {
         public Pattern getPattern() {
             return pattern;
         }
-
-        public abstract void handle(String line, Game currentGame, Matcher matcher, ParserService service);
 
         public static LogPatternsEnum getMatchingPatternEnum(String input) {
             for (LogPatternsEnum patternEnum : LogPatternsEnum.values()) {
@@ -71,10 +47,10 @@ public class ParserService {
     }
 
     public void parseLogFile() throws IOException {
+        System.out.println(ResourceUtils.getFile("classpath:games.log").getPath());
         BufferedReader reader = new BufferedReader(
             new FileReader(
-                //ResourceUtils.getFile("classpath:games.log")
-                "src/main/resources/games.log"
+                ResourceUtils.getFile("classpath:games.log")
             )
         );
         String line;
@@ -82,8 +58,32 @@ public class ParserService {
         while ((line = reader.readLine()) != null) {
             LogPatternsEnum matchingPatternEnum = LogPatternsEnum.getMatchingPatternEnum(line);
             if (matchingPatternEnum != null) {
-                Matcher matcher = matchingPatternEnum.getPattern().matcher(line);
-                matchingPatternEnum.handle(line, currentGame, matcher, this);
+                System.out.println(matchingPatternEnum.name());
+                switch(matchingPatternEnum){
+                    case INITGAME_PATTERN: {
+                        currentGame = new Game();
+                        break;
+                    }                        
+                    case KILL_PATTERN: {
+                        if (currentGame != null) {
+                            Matcher matcher = matchingPatternEnum.getPattern().matcher(line);
+                            matcher.find();
+                            String killer = matcher.group(1);
+                            String victim = matcher.group(2);
+                            currentGame.addKill(new Kill(killer, victim));
+                        }
+                        break;
+                    }                        
+                    case SHUTDOWNGAME_PATTERN: {
+                        if (currentGame != null) {
+                            gameRepository.save(currentGame);
+                            currentGame = null;
+                        }
+                        break;
+                    }                        
+                    default:
+                        break;
+                }
             }
         }
         reader.close();
